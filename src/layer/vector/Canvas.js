@@ -61,6 +61,13 @@ L.Canvas = L.Renderer.extend({
 		this._ctx = container.getContext('2d');
 	},
 
+	_destroyContainer: function () {
+		delete this._ctx;
+		L.DomUtil.remove(this._container);
+		L.DomEvent.off(this._container);
+		delete this._container;
+	},
+
 	_updatePaths: function () {
 		if (this._postponeUpdatePaths) { return; }
 

@@ -256,7 +256,7 @@ L.Marker = L.Layer.extend({
 			L.DomUtil.setPosition(this._shadow, pos);
 		}
 
-		this._zIndex = pos.y + this.options.zIndexOffset;
+		this._zIndex = (pos.y < 0 ? 0 : pos.y) + this.options.zIndexOffset;
 
 		this._resetZIndex();
 	},

@@ -1,10 +1,10 @@
 /*
- Leaflet 1.0.3, a JS library for interactive maps. http://leafletjs.com
+ Leaflet 1.0.3+8f3386d, a JS library for interactive maps. http://leafletjs.com
  (c) 2010-2016 Vladimir Agafonkin, (c) 2010-2011 CloudMade
 */
 (function (window, document, undefined) {
 var L = {
-	version: "1.0.3"
+	version: "1.0.3+8f3386d"
 };
 
 function expose() {
@@ -6586,7 +6586,7 @@ L.Marker = L.Layer.extend({
 			L.DomUtil.setPosition(this._shadow, pos);
 		}
 
-		this._zIndex = pos.y + this.options.zIndexOffset;
+		this._zIndex = (pos.y < 0 ? 0 : pos.y) + this.options.zIndexOffset;
 
 		this._resetZIndex();
 	},

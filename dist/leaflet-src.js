@@ -1,10 +1,10 @@
 /*
- Leaflet 1.0.3+8f3386d, a JS library for interactive maps. http://leafletjs.com
+ Leaflet 1.0.3+e77d4f63, a JS library for interactive maps. http://leafletjs.com
  (c) 2010-2016 Vladimir Agafonkin, (c) 2010-2011 CloudMade
 */
 (function (window, document, undefined) {
 var L = {
-	version: "1.0.3+8f3386d"
+	version: "1.0.3+e77d4f63"
 };
 
 function expose() {
@@ -2986,9 +2986,18 @@ L.Map = L.Evented.extend({
 			this.fire('unload');
 		}
 
-		for (var i in this._layers) {
+		var i;
+		for (i in this._layers) {
 			this._layers[i].remove();
 		}
+		for (i in this._panes) {
+			L.DomUtil.remove(this._panes[i]);
+		}
+
+		this._layers = [];
+		this._panes = [];
+		delete this._mapPane;
+		delete this._renderer;
 
 		return this;
 	},
@@ -3779,12 +3788,12 @@ L.Map = L.Evented.extend({
 
 		this.on('zoomanim', function (e) {
 			var prop = L.DomUtil.TRANSFORM,
-			    transform = proxy.style[prop];
+			    transform = this._proxy.style[prop];
 
-			L.DomUtil.setTransform(proxy, this.project(e.center, e.zoom), this.getZoomScale(e.zoom, 1));
+			L.DomUtil.setTransform(this._proxy, this.project(e.center, e.zoom), this.getZoomScale(e.zoom, 1));
 
 			// workaround for case when transform is the same and so transitionend event is not fired
-			if (transform === proxy.style[prop] && this._animatingZoom) {
+			if (transform === this._proxy.style[prop] && this._animatingZoom) {
 				this._onZoomTransitionEnd();
 			}
 		}, this);
@@ -3792,8 +3801,15 @@ L.Map = L.Evented.extend({
 		this.on('load moveend', function () {
 			var c = this.getCenter(),
 			    z = this.getZoom();
-			L.DomUtil.setTransform(proxy, this.project(c, z), this.getZoomScale(z, 1));
+			L.DomUtil.setTransform(this._proxy, this.project(c, z), this.getZoomScale(z, 1));
 		}, this);
+
+		this._on('unload', this._destroyAnimProxy, this);
+	},
+
+	_destroyAnimProxy: function () {
+		L.DomUtil.remove(this._proxy);
+		delete this._proxy;
 	},
 
 	_catchTransitionEnd: function (e) {
@@ -4209,18 +4225,27 @@ L.DomEvent = {
 	// @alternative
 	// @function off(el: HTMLElement, eventMap: Object, context?: Object): this
 	// Removes a set of type/listener pairs, e.g. `{click: onClick, mousemove: onMouseMove}`
+
+	// @alternative
+	// @function off(el: HTMLElement): this
+	// Removes all known event listeners
 	off: function (obj, types, fn, context) {
 
 		if (typeof types === 'object') {
 			for (var type in types) {
 				this._off(obj, type, types[type], fn);
 			}
-		} else {
+		} else if (types) {
 			types = L.Util.splitWords(types);
 
 			for (var i = 0, len = types.length; i < len; i++) {
 				this._off(obj, types[i], fn, context);
 			}
+		} else {
+			for (var j in obj[eventsKey]) {
+				this._off(obj, j, obj[eventsKey][j]);
+			}
+			delete obj[eventsKey];
 		}
 
 		return this;
@@ -8169,8 +8194,8 @@ L.Renderer = L.Layer.extend({
 	},
 
 	onRemove: function () {
-		L.DomUtil.remove(this._container);
 		this.off('update', this._updatePaths, this);
+		this._destroyContainer();
 	},
 
 	getEvents: function () {
@@ -9486,6 +9511,13 @@ L.SVG = L.Renderer.extend({
 		this._container.appendChild(this._rootGroup);
 	},
 
+	_destroyContainer: function () {
+		L.DomUtil.remove(this._container);
+		L.DomEvent.off(this._container);
+		delete this._container;
+		delete this._rootGroup;
+	},
+
 	_onZoomStart: function () {
 		// Drag-then-pinch interactions might mess up the center and zoom.
 		// In this case, the easiest way to prevent this is re-do the renderer
@@ -9892,6 +9924,13 @@ L.Canvas = L.Renderer.extend({
 			.on(container, 'mouseout', this._handleMouseOut, this);
 
 		this._ctx = container.getContext('2d');
+	},
+
+	_destroyContainer: function () {
+		delete this._ctx;
+		L.DomUtil.remove(this._container);
+		L.DomEvent.off(this._container);
+		delete this._container;
 	},
 
 	_updatePaths: function () {
@@ -11494,7 +11533,6 @@ L.extend(L.DomEvent, {
 	// ref http://www.w3.org/TR/pointerevents/ https://www.w3.org/Bugs/Public/show_bug.cgi?id=22890
 
 	addPointerListener: function (obj, type, handler, id) {
-
 		if (type === 'touchstart') {
 			this._addPointerStart(obj, handler, id);
 
@@ -11887,6 +11925,7 @@ L.Map.BoxZoom = L.Handler.extend({
 		this._map = map;
 		this._container = map._container;
 		this._pane = map._panes.overlayPane;
+		map.on('unload', this._destroy, this);
 	},
 
 	addHooks: function () {
@@ -11899,6 +11938,11 @@ L.Map.BoxZoom = L.Handler.extend({
 
 	moved: function () {
 		return this._moved;
+	},
+
+	_destroy: function () {
+		L.DomUtil.remove(this._pane);
+		delete this._pane;
 	},
 
 	_resetState: function () {
@@ -12435,7 +12479,12 @@ L.Map.include({
 	},
 
 	_clearControlPos: function () {
+		for (var i in this._controlCorners) {
+			L.DomUtil.remove(this._controlCorners[i]);
+		}
 		L.DomUtil.remove(this._controlContainer);
+		delete this._controlCorners;
+		delete this._controlContainer;
 	}
 });
 
